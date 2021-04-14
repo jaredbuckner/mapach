@@ -30,12 +30,22 @@ void map_exit_on_error(error_type e) {
 
 error_type mapdata_init(mapdata_type **mdh, index_type dim_x, index_type dim_y) {
   mapdata_type *md = (mapdata_type *) malloc(sizeof(mapdata_type));
+  
   if(NULL == md) return(MD_MEMORY_ERROR);
-
+  
   md->dim.x = dim_x;
   md->dim.y = dim_y;
   md->size = dim_x * dim_y;
-
+  
+  md->dir_offset[0].x = 0;         md->dir_offset[0].y = dim_y - 1;
+  md->dir_offset[1].x = 1;         md->dir_offset[1].y = dim_y - 1;
+  md->dir_offset[2].x = 1;         md->dir_offset[2].y = 0;
+  md->dir_offset[3].x = 1;         md->dir_offset[3].y = 1;
+  md->dir_offset[4].x = 0;         md->dir_offset[4].y = 1;
+  md->dir_offset[5].x = dim_x - 1; md->dir_offset[5].y = 1;
+  md->dir_offset[6].x = dim_x - 1; md->dir_offset[6].y = 0;
+  md->dir_offset[7].x = dim_x - 1; md->dir_offset[7].y = dim_y - 1;
+  
   md->data = (datum_type *) calloc(md->size, sizeof(datum_type));
   if(NULL == md->data) {
     free(md);
@@ -69,17 +79,9 @@ coord_type mapdata_idx_to_coord(mapdata_type *md, index_type idx) {
   return(result);
 }
 
-index_type mapdata_surround(mapdata_type *md, index_type center, index_type nidx) {
-  switch(nidx) {
-  case 0: return((center + md->size - md->dim.x) % md->size);
-  case 1: return((center + md->size + 1 - md->dim.x) % md->size);
-  case 2: return((center + 1) % md->size);
-  case 3: return((center + 1 + md->dim.x) % md->size);
-  case 4: return((center + md->dim.x) % md->size);
-  case 5: return((center + md->dim.x - 1) % md->size);
-  case 6: return((center + md->size - 1) % md->size);
-  case 7: return((center + md->size - 1 - md->dim.x) % md->size);
-  }
-  return(0);
+index_type mapdata_surround(mapdata_type *md, index_type center, direction_type d) {
+  index_type x = (center + md->dir_offset[d].x) % md->dim.x;
+  index_type y = (center / md->dim.x + md->dir_offset[d].y) % md->dim.y;
+  return(y * md->dim.x + x);
 }
   
