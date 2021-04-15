@@ -7,10 +7,72 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct {
+  size_t size;
+  size_t capacity;
+  index_type data[];
+} _array_type;
+
 const char *_map_errors[] = {
   "No error occurred.",
   "While initializing map data, unable to allocate enough memory.",
+  "Memory exhaustion while allocating an internal buffer.",
+  "Memory exhaustion while resizing an internal buffer.",
 };
+
+
+
+error_type _array_init(_array_type **array, size_t capacity) {
+  _array_type *ad = (_array_type *) malloc(2 * sizeof(size_t)
+                                           + capacity * sizeof(index_type));
+
+  if(NULL == ad) return BUF_ALLOC_ERROR;
+
+  ad->size = 0;
+  ad->capacity = capacity;
+
+  *array = ad;
+
+  return NO_ERROR;
+}
+
+
+error_type _array_resize(_array_type **array, size_t capacity) {
+  _array_type *ad = (_array_type *) realloc(*array,
+                                            2 * sizeof(size_t)
+                                            + capacity * sizeof(index_type));
+
+  if(NULL == ad) return BUF_RESIZE_ERROR;
+
+  ad->capacity = capacity;
+  *array = ad;
+
+  return NO_ERROR;
+}
+
+void _array_free(_array_type **array) {
+  free(*array);
+  *array = NULL;
+}
+
+
+error_type _array_insert(_array_type **array, size_t idx, index_type value) {
+  _array_type *ad = *array;
+  error_type err = NO_ERROR;
+  
+  if(ad->size == ad->capacity) {
+    size_t new_capacity = ad->capacity ? ad->capacity * 2 : 1;
+    if(NO_ERROR != (err = _array_resize(array, new_capacity * 2))) return err;
+    ad = *array;
+  }
+
+  memmove(ad->data + idx, ad->data + idx + 1, (ad->size - idx) * sizeof(index_type));
+  ad->size += 1;
+  ad->data[idx] = value;
+
+  return NO_ERROR;
+}
+
 
 
 const char *map_error_to_str(error_type e) {

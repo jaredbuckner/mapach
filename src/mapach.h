@@ -27,7 +27,9 @@ typedef struct {
 
 typedef enum {
   NO_ERROR = 0,
-  MD_MEMORY_ERROR = 1,
+  MD_MEMORY_ERROR,
+  BUF_ALLOC_ERROR,
+  BUF_RESIZE_ERROR,
 } error_type;
 
 // Clockwise around.
