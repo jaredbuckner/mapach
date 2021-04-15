@@ -4,8 +4,11 @@
 
 #include "mapach.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 typedef struct {
   size_t size;
@@ -59,6 +62,9 @@ void _array_free(_array_type **array) {
 error_type _array_insert(_array_type **array, size_t idx, index_type value) {
   _array_type *ad = *array;
   error_type err = NO_ERROR;
+
+  assert(ad != NULL);
+  assert(idx <= ad->size);
   
   if(ad->size == ad->capacity) {
     size_t new_capacity = ad->capacity ? ad->capacity * 2 : 1;
@@ -66,13 +72,90 @@ error_type _array_insert(_array_type **array, size_t idx, index_type value) {
     ad = *array;
   }
 
-  memmove(ad->data + idx, ad->data + idx + 1, (ad->size - idx) * sizeof(index_type));
+  memmove(ad->data + idx + 1, ad->data + idx, (ad->size - idx) * sizeof(index_type));
   ad->size += 1;
   ad->data[idx] = value;
 
   return NO_ERROR;
 }
 
+
+error_type _array_delete(_array_type **array, size_t idx) {
+  _array_type *ad = *array;
+
+  assert(ad != NULL);
+  assert(idx < ad->size);
+  
+  memmove(ad->data + idx, ad->data + idx + 1, (ad->size - idx - 1) * sizeof(index_type));
+  ad->size -= 1;
+
+  return NO_ERROR;
+}
+
+
+error_type test_array(){
+  char statebuf[256];
+  struct random_data rbuf;
+  signed int randresult;
+  _array_type  *myarray;
+  error_type err = NO_ERROR;
+  size_t maxsize = 0;
+  size_t maxcapacity = 0;
+  
+  rbuf.state = NULL;
+  initstate_r(time(NULL), statebuf, 256, &rbuf);
+
+  if(NO_ERROR != (err = _array_init(&myarray, 16))) return err;
+
+  for(unsigned int i = 0; i < 20; ++i) {
+    size_t idx;
+    
+    random_r(&rbuf, &randresult);
+    idx = randresult % ( myarray->size + 1 );
+    if(NO_ERROR != (err = _array_insert(&myarray, idx, i))) return err;
+
+  }
+
+  for(size_t idx = 0; idx < myarray->size; ++idx) {
+    printf(" %ld" + !(idx), myarray->data[idx]);
+  }
+
+  printf("\nFinal size:  %ld/%ld\n", myarray->size, myarray->capacity);
+  _array_free(&myarray);
+  
+  
+  if(NO_ERROR != (err = _array_init(&myarray, 16))) return err;  
+  
+  for(unsigned int i = 0; i < 1000000; ++i) {
+    if(myarray->size == 0) {
+      if(NO_ERROR != (err = _array_insert(&myarray, 0, i))) return err;
+      
+    } else {
+      size_t op, idx;
+      random_r(&rbuf, &randresult);
+      op = randresult % 5;
+      random_r(&rbuf, &randresult);
+      if(op < 2) {
+        idx = randresult % myarray->size;
+        if(NO_ERROR != (err = _array_delete(&myarray, idx))) return err;
+        
+      } else {
+        idx = randresult % ( myarray->size + 1 );
+        if(NO_ERROR != (err = _array_insert(&myarray, idx, i))) return err;
+        
+      }
+    }
+    if(myarray->size > maxsize) maxsize = myarray->size;
+    if(myarray->capacity > maxcapacity) maxcapacity = myarray->capacity;
+  }
+
+  printf("Current size:  %ld/%ld\n", myarray->size, myarray->capacity);
+  printf("Maximum size:  %ld/%ld\n", maxsize, maxcapacity);
+  
+  _array_free(&myarray);
+  
+  return NO_ERROR;
+}
 
 
 const char *map_error_to_str(error_type e) {

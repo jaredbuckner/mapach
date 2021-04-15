@@ -49,6 +49,9 @@ typedef enum {
   DIR_ENUM_SIZE,
 } direction_type;
 
+// For temporary testing...
+extern error_type test_array();
+
 extern const char *map_error_to_str(error_type e);
 extern void        map_perror(error_type e);
 extern void        map_exit_on_error(error_type e);

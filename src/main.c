@@ -9,8 +9,11 @@
 int main(int argc, char* argv[]) {
   mapdata_type *md;
 
+  printf("Testing arrays...\n");
+  map_exit_on_error(test_array());
+  
   printf("Initializing map data...\n");
-  map_exit_on_error(mapdata_init(&md, 1000, 1000));
+  map_exit_on_error(mapdata_init(&md, 10, 10));
   printf("MD: %p, MD->D: %p, MD->X: %ld, MD->Y: %ld, MD->S: %ld\n",
          md, md->data, md->dim.x, md->dim.y, md->size);
 
