@@ -64,3 +64,7 @@ extern index_type mapdata_xy_to_idx(mapdata_type *md, index_type x, index_type y
 extern coord_type mapdata_idx_to_coord(mapdata_type *md, index_type idx);
 
 extern index_type mapdata_surround(mapdata_type *md, index_type center, direction_type d);
+
+extern error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
+                                    height_type max_slope);
+
