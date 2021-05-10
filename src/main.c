@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
   struct random_data rbuf;
   mapdata_type *md;
   const index_type dim = 1081;
-  const index_type dimx = 3 * dim, dimy = 5 * dim;
+  const index_type dimx = 1 * dim, dimy = 1 * dim;
   
   rbuf.state = NULL;
   initstate_r(time(NULL), statebuf, 256, &rbuf);
@@ -62,12 +62,27 @@ int main(int argc, char* argv[]) {
   printf("\nELEVATION:\n");
   height_type min_elev = 0;
   for(size_t idx = 0; idx < md->size; ++idx) {
-    if(md->data[idx].elevation < min_elev) {
-      min_elev = md->data[idx].elevation;
+    height_type elev = md->data[idx].elevation;
+    char isZenith = 1;
+    char isNadir = 1;
+    for(size_t sidx = 0; sidx < 8; sidx += 2) {
+      index_type eidx = mapdata_surround(md, idx, sidx);
+      height_type eElev = md->data[eidx].elevation;
+      if(eElev > elev) isZenith = 0;
+      else if(eElev < elev) isNadir = 0;
     }
+
     
-    // printf(" %03g", md->data[idx].elevation);    
-    // if((idx + 1) % md->dim.x == 0) printf("\n");
+    if(elev < min_elev) {
+      min_elev = elev;
+    }
+
+    if(isNadir || isZenith) {
+      coord_type xy = mapdata_idx_to_coord(md, idx);
+      printf("%c%c %5ld,%-5ld %03g\n", isNadir ? 'N' : ' ',
+             isZenith ? 'Z' : ' ', xy.x, xy.y,
+             md->data[idx].elevation);
+    }
   }
   
   printf("\nMin:  %g\n\nWATER:\n", min_elev);
@@ -82,6 +97,14 @@ int main(int argc, char* argv[]) {
   }
 
   printf("\nMax:  %g\n\n", max_vol);
+
+  {
+    FILE *fp = fopen("sample.png", "wb");
+    if(fp) {
+      mapdata_write_png(fp, md, min_elev, 0);
+      fclose(fp);
+    }
+  }
   
   printf("Exiting...\n");
   return(0);

@@ -3,6 +3,8 @@
 /// Map generator
 
 #include <assert.h>
+#include <netinet/in.h>
+#include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +24,7 @@ const char *_map_errors[] = {
   "While initializing map data, unable to allocate enough memory.",
   "Memory exhaustion while allocating an internal buffer.",
   "Memory exhaustion while resizing an internal buffer.",
+  "Unable to generate PNG information.",
 };
 
 
@@ -93,6 +96,27 @@ error_type _array_delete(_array_type **array, size_t idx) {
   return NO_ERROR;
 }
 
+size_t _array_height_ub(_array_type **array, mapdata_type *md, height_type value) {
+  
+  _array_type *ad = *array;  
+  assert(ad != NULL);
+  size_t lb = 0;
+  size_t ub = ad->size;
+
+  
+  while(lb < ub) {
+    size_t aidx = (lb + ub) / 2;
+    index_type didx = ad->data[aidx];
+    height_type elev = md->data[didx].elevation;
+    if(elev < value) {
+      lb = aidx;
+    } else {
+      ub = aidx;
+    }
+  }
+
+  return(ub);
+}
 
 error_type test_array(){
   char statebuf[256];
@@ -343,3 +367,50 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
   
   return NO_ERROR;
 }
+
+
+error_type mapdata_write_png(FILE *fp, mapdata_type *md,
+                             height_type black_elev, height_type white_elev) {
+  png_structp png_ptr = 0;
+  png_infop info_ptr = 0;
+  error_type e = PNG_GEN_ERROR;
+  double full_span = white_elev - black_elev;
+  
+  if(!(png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0))) goto cleanup;
+  if(!(info_ptr = png_create_info_struct(png_ptr)))                        goto cleanup;
+  if(setjmp(png_jmpbuf(png_ptr)))                                          goto cleanup;
+
+  png_init_io(png_ptr, fp);
+
+  png_set_IHDR(png_ptr, info_ptr, md->dim.x, md->dim.y, 16,
+               PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+  png_write_info(png_ptr, info_ptr);
+
+  png_byte* row = malloc(2 * md->dim.x);
+  for(index_type y = 0; y < md->dim.y; ++y) {
+    for(index_type x = 0; x < md->dim.x; ++x) {
+      index_type idx = mapdata_xy_to_idx(md, x, y);
+      height_type elev = md->data[idx].elevation;
+      double elev_span = elev - black_elev;
+      double color = 65535.0 * elev_span / full_span;
+      if(color > 65535) color = 65535;
+      else if(color < 0) color = 0;
+      
+      ((unsigned short*)row)[x] = htons((unsigned short)color);
+    }
+    png_write_row(png_ptr, row);
+  }
+  png_write_end(png_ptr, info_ptr);
+  free(row);
+  e = NO_ERROR;
+  
+ cleanup:
+  if(png_ptr != 0) {
+    if(info_ptr == 0) png_destroy_write_struct(&png_ptr, 0);
+    else              png_destroy_write_struct(&png_ptr, &info_ptr);
+  }
+
+  return e;
+}
+

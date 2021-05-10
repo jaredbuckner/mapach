@@ -30,6 +30,7 @@ typedef enum {
   MD_MEMORY_ERROR,
   BUF_ALLOC_ERROR,
   BUF_RESIZE_ERROR,
+  PNG_GEN_ERROR,
 } error_type;
 
 // Clockwise around.
@@ -67,4 +68,7 @@ extern index_type mapdata_surround(mapdata_type *md, index_type center, directio
 
 extern error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
                                     height_type max_slope);
+
+extern error_type mapdata_write_png(FILE *fp, mapdata_type *md,
+                                    height_type black_elev, height_type white_elev);
 
