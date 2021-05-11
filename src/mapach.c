@@ -100,7 +100,7 @@ size_t _array_index_ub(_array_type **array, index_type value) {
   _array_type *ad = *array;
   assert(ad != NULL);
   size_t lb = 0;
-  size-t ub = ad->size();
+  size_t ub = ad->size;
 
   while(lb < ub) {
     size_t aidx = (lb + ub) / 2;
@@ -215,10 +215,6 @@ void map_exit_on_error(error_type e) {
     map_perror(e);
     exit(2);
   }
-}
-
-height_type elev_limit(height_type local_elev, volume_type water, height_type distance) {
-  
 }
 
 
