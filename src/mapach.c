@@ -83,6 +83,49 @@ error_type _array_insert(_array_type **array, size_t idx, index_type value) {
   return NO_ERROR;
 }
 
+error_type _array_swap_elem(_array_type **array, size_t idx0, size_t idx1) {
+  _array_type *ad = *array;
+
+  assert(ad != NULL);
+  assert(idx0 < ad->size);
+  assert(idx1 < ad->size);
+
+  index_type vtmp = ad->data[idx0];
+  ad->data[idx0] = ad->data[idx1];
+  ad->data[idx1] = vtmp;
+
+  return NO_ERROR;
+}
+
+// The 'dst_idx' argument refers to the index of the element the source element
+// will be inserted before.  Since elements may be moved -- and their indexes
+// changed -- the actual location of the inserted element is returned.
+size_t _array_move_elem(_array_type **array,
+                            size_t src_idx, size_t dst_idx) {
+  _array_type *ad = *array;
+
+  assert(ad != NULL);
+  assert(src_idx < ad->size);
+  assert(dst_idx <= ad->size);
+
+  if(src_idx + 1 < dst_idx) {
+    index_type vtmp = ad->data[src_idx];
+    memmove(ad->data + src_idx,
+            ad->data + src_idx + 1,
+            (dst_idx - src_idx - 1) * sizeof(index_type));
+    ad->data[dst_idx - 1] = vtmp;
+    return dst_idx - 1;
+  } else if(dst_idx < src_idx) {
+    index_type vtmp = ad->data[src_idx];
+    memmove(ad->data + dst_idx + 1,
+            ad->data + dst_idx,
+            (src_idx - dst_idx) * sizeof(index_type));
+    ad->data[dst_idx] = vtmp;
+    return dst_idx;
+  } else {
+    return src_idx;
+  }  
+}
 
 error_type _array_delete(_array_type **array, size_t idx) {
   _array_type *ad = *array;
@@ -175,18 +218,23 @@ error_type test_array(){
       if(NO_ERROR != (err = _array_insert(&myarray, 0, i))) return err;
       
     } else {
-      size_t op, idx;
+      size_t op, idx, idx2;
       random_r(&rbuf, &randresult);
-      op = randresult % 5;
+      op = randresult % 6;
       random_r(&rbuf, &randresult);
       if(op < 2) {
         idx = randresult % myarray->size;
         if(NO_ERROR != (err = _array_delete(&myarray, idx))) return err;
         
-      } else {
+      } else if (op < 5) {
         idx = randresult % ( myarray->size + 1 );
         if(NO_ERROR != (err = _array_insert(&myarray, idx, i))) return err;
         
+      } else {
+        idx = randresult % myarray->size;
+        random_r(&rbuf, &randresult);
+        idx2 = randresult % ( myarray->size + 1 );
+        _array_move_elem(&myarray, idx, idx2);
       }
     }
     if(myarray->size > maxsize) maxsize = myarray->size;
