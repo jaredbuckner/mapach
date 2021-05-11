@@ -96,6 +96,25 @@ error_type _array_delete(_array_type **array, size_t idx) {
   return NO_ERROR;
 }
 
+size_t _array_index_ub(_array_type **array, index_type value) {
+  _array_type *ad = *array;
+  assert(ad != NULL);
+  size_t lb = 0;
+  size-t ub = ad->size();
+
+  while(lb < ub) {
+    size_t aidx = (lb + ub) / 2;
+    index_type didx = ad->data[aidx];
+    if(didx < value) {
+      lb = aidx;
+    } else {
+      ub = aidx;
+    }
+  }
+
+  return(ub);
+}
+
 size_t _array_height_ub(_array_type **array, mapdata_type *md, height_type value) {
   
   _array_type *ad = *array;  
@@ -197,6 +216,11 @@ void map_exit_on_error(error_type e) {
     exit(2);
   }
 }
+
+height_type elev_limit(height_type local_elev, volume_type water, height_type distance) {
+  
+}
+
 
 error_type mapdata_init(mapdata_type **mdh, index_type dim_x, index_type dim_y) {
   mapdata_type *md = (mapdata_type *) malloc(sizeof(mapdata_type));
