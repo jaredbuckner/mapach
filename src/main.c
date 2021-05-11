@@ -43,6 +43,7 @@ int main(int argc, char* argv[]) {
   mapdata_type *md;
   const index_type dim = 1081;
   const index_type dimx = 1 * dim, dimy = 1 * dim;
+  //const index_type dimx = 18000, dimy = dimx;
   
   rbuf.state = NULL;
   initstate_r(time(NULL), statebuf, 256, &rbuf);
