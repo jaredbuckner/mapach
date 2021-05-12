@@ -3,21 +3,17 @@
 /// Map generator
 
 #include <assert.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 
+#include "maptypes.h"
+#include "indexarray.h"
 #include "mapach.h"
 
-
-typedef struct {
-  size_t size;
-  size_t capacity;
-  index_type data[];
-} _array_type;
 
 const char *_map_errors[] = {
   "No error occurred.",
@@ -27,227 +23,6 @@ const char *_map_errors[] = {
   "Unable to generate PNG information.",
 };
 
-
-
-error_type _array_init(_array_type **array, size_t capacity) {
-  _array_type *ad = (_array_type *) malloc(2 * sizeof(size_t)
-                                           + capacity * sizeof(index_type));
-
-  if(NULL == ad) return BUF_ALLOC_ERROR;
-
-  ad->size = 0;
-  ad->capacity = capacity;
-
-  *array = ad;
-
-  return NO_ERROR;
-}
-
-
-error_type _array_resize(_array_type **array, size_t capacity) {
-  _array_type *ad = (_array_type *) realloc(*array,
-                                            2 * sizeof(size_t)
-                                            + capacity * sizeof(index_type));
-
-  if(NULL == ad) return BUF_RESIZE_ERROR;
-
-  ad->capacity = capacity;
-  *array = ad;
-
-  return NO_ERROR;
-}
-
-void _array_free(_array_type **array) {
-  free(*array);
-  *array = NULL;
-}
-
-
-error_type _array_insert(_array_type **array, size_t idx, index_type value) {
-  _array_type *ad = *array;
-  error_type err = NO_ERROR;
-
-  assert(ad != NULL);
-  assert(idx <= ad->size);
-  
-  if(ad->size == ad->capacity) {
-    size_t new_capacity = ad->capacity ? ad->capacity * 2 : 1;
-    if(NO_ERROR != (err = _array_resize(array, new_capacity * 2))) return err;
-    ad = *array;
-  }
-
-  memmove(ad->data + idx + 1, ad->data + idx, (ad->size - idx) * sizeof(index_type));
-  ad->size += 1;
-  ad->data[idx] = value;
-
-  return NO_ERROR;
-}
-
-error_type _array_swap_elem(_array_type **array, size_t idx0, size_t idx1) {
-  _array_type *ad = *array;
-
-  assert(ad != NULL);
-  assert(idx0 < ad->size);
-  assert(idx1 < ad->size);
-
-  index_type vtmp = ad->data[idx0];
-  ad->data[idx0] = ad->data[idx1];
-  ad->data[idx1] = vtmp;
-
-  return NO_ERROR;
-}
-
-// The 'dst_idx' argument refers to the index of the element the source element
-// will be inserted before.  Since elements may be moved -- and their indexes
-// changed -- the actual location of the inserted element is returned.
-size_t _array_move_elem(_array_type **array,
-                            size_t src_idx, size_t dst_idx) {
-  _array_type *ad = *array;
-
-  assert(ad != NULL);
-  assert(src_idx < ad->size);
-  assert(dst_idx <= ad->size);
-
-  if(src_idx + 1 < dst_idx) {
-    index_type vtmp = ad->data[src_idx];
-    memmove(ad->data + src_idx,
-            ad->data + src_idx + 1,
-            (dst_idx - src_idx - 1) * sizeof(index_type));
-    ad->data[dst_idx - 1] = vtmp;
-    return dst_idx - 1;
-  } else if(dst_idx < src_idx) {
-    index_type vtmp = ad->data[src_idx];
-    memmove(ad->data + dst_idx + 1,
-            ad->data + dst_idx,
-            (src_idx - dst_idx) * sizeof(index_type));
-    ad->data[dst_idx] = vtmp;
-    return dst_idx;
-  } else {
-    return src_idx;
-  }  
-}
-
-error_type _array_delete(_array_type **array, size_t idx) {
-  _array_type *ad = *array;
-
-  assert(ad != NULL);
-  assert(idx < ad->size);
-  
-  memmove(ad->data + idx, ad->data + idx + 1, (ad->size - idx - 1) * sizeof(index_type));
-  ad->size -= 1;
-
-  return NO_ERROR;
-}
-
-size_t _array_index_ub(_array_type **array, index_type value) {
-  _array_type *ad = *array;
-  assert(ad != NULL);
-  size_t lb = 0;
-  size_t ub = ad->size;
-
-  while(lb < ub) {
-    size_t aidx = (lb + ub) / 2;
-    index_type didx = ad->data[aidx];
-    if(didx < value) {
-      lb = aidx;
-    } else {
-      ub = aidx;
-    }
-  }
-
-  return(ub);
-}
-
-size_t _array_height_ub(_array_type **array, mapdata_type *md, height_type value) {
-  
-  _array_type *ad = *array;  
-  assert(ad != NULL);
-  size_t lb = 0;
-  size_t ub = ad->size;
-
-  
-  while(lb < ub) {
-    size_t aidx = (lb + ub) / 2;
-    index_type didx = ad->data[aidx];
-    height_type elev = md->data[didx].elevation;
-    if(elev < value) {
-      lb = aidx;
-    } else {
-      ub = aidx;
-    }
-  }
-
-  return(ub);
-}
-
-error_type test_array(){
-  char statebuf[256];
-  struct random_data rbuf;
-  signed int randresult;
-  _array_type  *myarray;
-  error_type err = NO_ERROR;
-  size_t maxsize = 0;
-  size_t maxcapacity = 0;
-  
-  rbuf.state = NULL;
-  initstate_r(time(NULL), statebuf, 256, &rbuf);
-
-  if(NO_ERROR != (err = _array_init(&myarray, 16))) return err;
-
-  for(unsigned int i = 0; i < 20; ++i) {
-    size_t idx;
-    
-    random_r(&rbuf, &randresult);
-    idx = randresult % ( myarray->size + 1 );
-    if(NO_ERROR != (err = _array_insert(&myarray, idx, i))) return err;
-
-  }
-
-  for(size_t idx = 0; idx < myarray->size; ++idx) {
-    printf(" %ld" + !(idx), myarray->data[idx]);
-  }
-
-  printf("\nFinal size:  %ld/%ld\n", myarray->size, myarray->capacity);
-  _array_free(&myarray);
-  
-  
-  if(NO_ERROR != (err = _array_init(&myarray, 16))) return err;  
-  
-  for(unsigned int i = 0; i < 1000000; ++i) {
-    if(myarray->size == 0) {
-      if(NO_ERROR != (err = _array_insert(&myarray, 0, i))) return err;
-      
-    } else {
-      size_t op, idx, idx2;
-      random_r(&rbuf, &randresult);
-      op = randresult % 6;
-      random_r(&rbuf, &randresult);
-      if(op < 2) {
-        idx = randresult % myarray->size;
-        if(NO_ERROR != (err = _array_delete(&myarray, idx))) return err;
-        
-      } else if (op < 5) {
-        idx = randresult % ( myarray->size + 1 );
-        if(NO_ERROR != (err = _array_insert(&myarray, idx, i))) return err;
-        
-      } else {
-        idx = randresult % myarray->size;
-        random_r(&rbuf, &randresult);
-        idx2 = randresult % ( myarray->size + 1 );
-        _array_move_elem(&myarray, idx, idx2);
-      }
-    }
-    if(myarray->size > maxsize) maxsize = myarray->size;
-    if(myarray->capacity > maxcapacity) maxcapacity = myarray->capacity;
-  }
-
-  printf("Current size:  %ld/%ld\n", myarray->size, myarray->capacity);
-  printf("Maximum size:  %ld/%ld\n", maxsize, maxcapacity);
-  
-  _array_free(&myarray);
-  
-  return NO_ERROR;
-}
 
 
 const char *map_error_to_str(error_type e) {
@@ -266,7 +41,27 @@ void map_exit_on_error(error_type e) {
 }
 
 
-error_type mapdata_init(mapdata_type **mdh, index_type dim_x, index_type dim_y) {
+
+void _water_ellipse(double* a, double* b, double slope, double water) {
+  // For now we're going to create an ellipse with the given half-volume, for which the ratio of a to b is the slope (m)
+  // A = 0.5 * pi * a * b
+  //   = 0.5 * pi * m * a * a
+  //
+  *a = sqrt(water / M_PI_2 / slope);
+  *b = slope * *a;
+}
+
+double _ellipse_height(double a, double b, double x, double y, double slope) {
+  double r = sqrt(x*x + y*y);
+  if(r > a) {
+    return slope * a;
+  } else {
+    return a * sqrt(1 - r * r / a / a) + b;
+  }
+}
+
+
+error_type mapdata_init(mapdata_type **mdh, size_t dim_x, size_t dim_y) {
   mapdata_type *md = (mapdata_type *) malloc(sizeof(mapdata_type));
   
   if(NULL == md) return(MD_MEMORY_ERROR);
@@ -302,28 +97,28 @@ void mapdata_free(mapdata_type **mdh) {
   *mdh = NULL;
 }
 
-index_type mapdata_coord_to_idx(mapdata_type *md, coord_type coord) {
+size_t mapdata_coord_to_idx(mapdata_type *md, coord_type coord) {
   return(mapdata_xy_to_idx(md, coord.x, coord.y));
 }
 
-index_type mapdata_xy_to_idx(mapdata_type *md, index_type x, index_type y) {
+size_t mapdata_xy_to_idx(mapdata_type *md, size_t x, size_t y) {
   return(y * md->dim.x + x);  
 }
 
-coord_type mapdata_idx_to_coord(mapdata_type *md, index_type idx) {
+coord_type mapdata_idx_to_coord(mapdata_type *md, size_t idx) {
   coord_type result;
   result.x = idx % md->dim.x;
   result.y = idx / md->dim.x;
   return(result);
 }
 
-index_type mapdata_surround(mapdata_type *md, index_type center, direction_type d) {
-  index_type x = (center + md->dir_offset[d].x) % md->dim.x;
-  index_type y = (center / md->dim.x + md->dir_offset[d].y) % md->dim.y;
+size_t mapdata_surround(mapdata_type *md, size_t center, direction_type d) {
+  size_t x = (center + md->dir_offset[d].x) % md->dim.x;
+  size_t y = (center / md->dim.x + md->dir_offset[d].y) % md->dim.y;
   return(y * md->dim.x + x);
 }
 
-int _can_place_here(mapdata_type *md, index_type hereIdx) {
+int _can_place_here(mapdata_type *md, size_t hereIdx) {
   int        flips = 0;
   group_type lastGroup = md->data[mapdata_surround(md, hereIdx, 7)].group;
 
@@ -340,8 +135,8 @@ int _can_place_here(mapdata_type *md, index_type hereIdx) {
   return 1;
 }
 
-void _scan_environ(mapdata_type *md, index_type hereIdx,
-                   height_type *min_elev, volume_type *ground_water) {
+void _scan_environ(mapdata_type *md, size_t hereIdx,
+                   double *min_elev, double *ground_water) {
   *min_elev = 0;
   *ground_water = 0;
   for(size_t sidx = 0; sidx < 8; sidx += 2) {
@@ -363,9 +158,9 @@ void _scan_environ(mapdata_type *md, index_type hereIdx,
   }
 }
 
-void _rough_place(mapdata_type *md, height_type max_slope, index_type working_index) {
-  height_type min_surround;
-  volume_type ground_water;
+void _rough_place(mapdata_type *md, double max_slope, size_t working_index) {
+  double min_surround;
+  double ground_water;
   
   _scan_environ(md, working_index, &min_surround, &ground_water);
   md->data[working_index].elevation = min_surround - max_slope;
@@ -375,19 +170,19 @@ void _rough_place(mapdata_type *md, height_type max_slope, index_type working_in
 }
   
 error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
-                             height_type max_slope) {
-  _array_type *pending_indices;
-  index_type   working_index = mapdata_xy_to_idx(md, md->dim.x / 2, md->dim.y / 2);  
+                             double max_slope) {
+  array_type *pending_indices;
+  size_t   working_index = mapdata_xy_to_idx(md, md->dim.x / 2, md->dim.y / 2);  
   signed int   randresult;
   
   md->data[working_index].elevation = 0;
   md->data[working_index].water = 1;
   md->data[working_index].group = 1;
   
-  map_exit_on_error(_array_init(&pending_indices, 1024));
+  map_exit_on_error(array_init(&pending_indices, 1024));
   for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {    
-    map_exit_on_error(_array_insert(&pending_indices, pending_indices->size,
-                                    mapdata_surround(md, working_index, sidx)));
+    map_exit_on_error(array_insert(&pending_indices, pending_indices->size,
+                                   mapdata_surround(md, working_index, sidx)));
   }
   
   while(pending_indices->size != 0) {
@@ -406,17 +201,17 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
     _rough_place(md, max_slope, working_index);
     
     for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {
-      index_type newIdx = mapdata_surround(md, working_index, sidx);
+      size_t newIdx = mapdata_surround(md, working_index, sidx);
       if(md->data[newIdx].group == 0) {
-        map_exit_on_error(_array_insert(&pending_indices, pending_indices->size,
-                                        newIdx));
+        map_exit_on_error(array_insert(&pending_indices, pending_indices->size,
+                                       newIdx));
       }
     }
   }
 
   for(size_t arrIdx = 0; arrIdx < md->size; ++arrIdx) {
     if(md->data[arrIdx].group == 0) {
-      map_exit_on_error(_array_insert(&pending_indices, pending_indices->size, arrIdx));
+      map_exit_on_error(array_insert(&pending_indices, pending_indices->size, arrIdx));
     }
   }
 
@@ -432,13 +227,59 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
 
     _rough_place(md, max_slope, working_index);
   }
+
+  array_free(&pending_indices);
   
   return NO_ERROR;
 }
 
 
+error_type mapdata_transform(mapdata_type *md,
+                             double scale, double translate) {
+  for(size_t idx = 0; idx < md->size; ++idx) {
+    md->data[idx].elevation *= scale;
+    md->data[idx].elevation += translate;
+  }
+
+  return NO_ERROR;
+}
+
+int _is_nadir(mapdata_type *md, size_t idx) {
+  double elev = md->data[idx].elevation;
+  return( md->data[mapdata_surround(md, idx, 0)].elevation > elev &&
+          md->data[mapdata_surround(md, idx, 2)].elevation > elev &&
+          md->data[mapdata_surround(md, idx, 4)].elevation > elev &&
+          md->data[mapdata_surround(md, idx, 6)].elevation > elev);
+}
+
+void _insert_unique(array_type **pending_by_index,
+                    array_type **pending_by_height,
+                    mapdata_type *md, size_t idx) {
+  
+}
+
+size_t _pop_next(array_type **pending_by_index,
+                 array_type **pending_by_height,
+                 mapdata_type *md) {
+  return(0);
+}
+  
+
+error_type mapdata_erode(mapdata_type *md, double river_slope,
+                         double max_slope) {
+  array_type *pending_by_index;
+  array_type *pending_by_height;
+  
+  map_exit_on_error(array_init(&pending_by_index, 1024));
+  map_exit_on_error(array_init(&pending_by_height, 1024));
+
+  return NO_ERROR;
+}
+                         
+
+
 error_type mapdata_write_png(FILE *fp, mapdata_type *md,
-                             height_type black_elev, height_type white_elev) {
+                             double black_elev, double white_elev) {
   png_structp png_ptr = 0;
   png_infop info_ptr = 0;
   error_type e = PNG_GEN_ERROR;
@@ -456,10 +297,10 @@ error_type mapdata_write_png(FILE *fp, mapdata_type *md,
   png_write_info(png_ptr, info_ptr);
 
   png_byte* row = malloc(2 * md->dim.x);
-  for(index_type y = 0; y < md->dim.y; ++y) {
-    for(index_type x = 0; x < md->dim.x; ++x) {
-      index_type idx = mapdata_xy_to_idx(md, x, y);
-      height_type elev = md->data[idx].elevation;
+  for(size_t y = 0; y < md->dim.y; ++y) {
+    for(size_t x = 0; x < md->dim.x; ++x) {
+      size_t idx = mapdata_xy_to_idx(md, x, y);
+      double elev = md->data[idx].elevation;
       double elev_span = elev - black_elev;
       double color = 65535.0 * elev_span / full_span;
       if(color > 65535) color = 65535;
