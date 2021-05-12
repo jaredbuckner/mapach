@@ -13,7 +13,9 @@ extern size_t     array_bisect   (array_type **array, predicate_fn_type pred, vo
 
 // lt:   Is value less than the curried value?
 // ngt:  Is value not greater than the curried value?
+// idx:  data is a pointer to a size_t
 extern int        idx_lt_bound   (size_t value, void *data);
 extern int        idx_ngt_bound  (size_t value, void *data);
+// rhght:  data is a pointer to a curry_type
 extern int        rhgt_lt_bound  (size_t value, void *data);
 extern int        rhgt_ngt_bound (size_t value, void *data);

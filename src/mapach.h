@@ -15,7 +15,7 @@ extern coord_type mapdata_idx_to_coord(mapdata_type *md, size_t idx);
 extern size_t     mapdata_surround(mapdata_type *md, size_t center, direction_type d);
 
 extern error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
-                                    double max_slope);
+                                    double max_slope, double rainwater);
 
 extern error_type mapdata_erode(mapdata_type *md, double river_slope,
                                 double max_slope);

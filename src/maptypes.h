@@ -56,7 +56,7 @@ typedef enum {
 typedef int(*predicate_fn_type)(size_t, void*);
 
 typedef struct {
-  size_t       idx;
+  double       height;
   mapdata_type *md;
 } curry_type;
 

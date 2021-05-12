@@ -158,25 +158,25 @@ void _scan_environ(mapdata_type *md, size_t hereIdx,
   }
 }
 
-void _rough_place(mapdata_type *md, double max_slope, size_t working_index) {
+void _rough_place(mapdata_type *md, double max_slope, double rainwater, size_t working_index) {
   double min_surround;
   double ground_water;
   
   _scan_environ(md, working_index, &min_surround, &ground_water);
   md->data[working_index].elevation = min_surround - max_slope;
-  md->data[working_index].water = ground_water + 1;
+  md->data[working_index].water = ground_water + rainwater;
   md->data[working_index].group = 1;
   
 }
   
 error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
-                             double max_slope) {
+                             double max_slope, double rainwater) {
   array_type *pending_indices;
   size_t   working_index = mapdata_xy_to_idx(md, md->dim.x / 2, md->dim.y / 2);  
   signed int   randresult;
   
   md->data[working_index].elevation = 0;
-  md->data[working_index].water = 1;
+  md->data[working_index].water = rainwater;
   md->data[working_index].group = 1;
   
   map_exit_on_error(array_init(&pending_indices, 1024));
@@ -198,7 +198,7 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
     if(md->data[working_index].group != 0) continue;  //  Don't recalculate an already-handled entry
     if(!_can_place_here(md, working_index)) continue;  //  Don't place blocking entries
 
-    _rough_place(md, max_slope, working_index);
+    _rough_place(md, max_slope, rainwater, working_index);
     
     for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {
       size_t newIdx = mapdata_surround(md, working_index, sidx);
@@ -225,7 +225,7 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
     pending_indices->data[arrIdx] = pending_indices->data[pending_indices->size - 1];
     pending_indices->size -= 1;  // And manually decrease the size, bypassing some... stuff
 
-    _rough_place(md, max_slope, working_index);
+    _rough_place(md, max_slope, rainwater, working_index);
   }
 
   array_free(&pending_indices);
@@ -255,15 +255,23 @@ int _is_nadir(mapdata_type *md, size_t idx) {
 void _insert_unique(array_type **pending_by_index,
                     array_type **pending_by_height,
                     mapdata_type *md, size_t idx) {
-  curry_type cd;
-  cd.idx = idx;
-  cd.md = md;
-
-  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &cd);
+  
+  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &idx);
   if(index_where == (*pending_by_index)->size || (*pending_by_index)->data[index_where] != idx) {
+    curry_type cd;
+    cd.height = md->data[idx].elevation;
+    cd.md = md;
+
     size_t height_where = array_bisect(pending_by_height, rhgt_lt_bound, &cd);
     array_insert(pending_by_index, index_where, idx);
     array_insert(pending_by_height, height_where, idx);
+    
+    assert((*pending_by_height)->size == (*pending_by_index)->size);
+    for(size_t cidx = 1; cidx < (*pending_by_height)->size; ++cidx) {
+      assert(md->data[(*pending_by_height)->data[cidx]].elevation
+             <= md->data[(*pending_by_height)->data[cidx - 1]].elevation);
+      assert((*pending_by_index)->data[cidx-1] < (*pending_by_index)->data[cidx]);
+    }
   }
 }
 
@@ -271,16 +279,35 @@ size_t _pop_next(array_type **pending_by_index,
                  array_type **pending_by_height,
                  mapdata_type *md) {
   assert((*pending_by_height)->size != 0);
-  curry_type cd;
-  cd.idx = (*pending_by_height)->data[--((*pending_by_height)->size)];
-  cd.md = md;
-  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &cd);
+  size_t idx = (*pending_by_height)->data[--((*pending_by_height)->size)];
+  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &idx);
   assert(index_where != (*pending_by_index)->size);
-  assert((*pending_by_index)->data[index_where] == cd.idx);
+  assert((*pending_by_index)->data[index_where] == idx);
   array_delete(pending_by_index, index_where);
-  return cd.idx;  
+  return idx;  
 }
+
+void _safe_update_elev(array_type **pending_by_height,
+                       mapdata_type *md,
+                       size_t idx,
+                       double new_elev) {
+  curry_type cd;
+  cd.height = md->data[idx].elevation;
+  cd.md = md;
   
+  size_t lb = array_bisect(pending_by_height, rhgt_lt_bound, &cd);
+  size_t ub = array_bisect(pending_by_height, rhgt_ngt_bound, &cd);
+
+  for(size_t aidx = lb; aidx < ub; ++aidx) {
+    if((*pending_by_height)->data[aidx] == idx) {
+      cd.height = new_elev;
+      size_t naidx = array_bisect(pending_by_height, rhgt_lt_bound, &cd);
+      array_move_elem(pending_by_height, aidx, naidx);
+      break;
+    }
+  }
+  md->data[idx].elevation = new_elev;
+}  
 
 error_type mapdata_erode(mapdata_type *md, double river_slope,
                          double max_slope) {
@@ -291,21 +318,25 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
   map_exit_on_error(array_init(&pending_by_height, 1024));
 
   for(size_t idx = 0; idx < md->size; ++idx) {
+    md->data[idx].group = 1;
     if(_is_nadir(md, idx)) {
       _insert_unique(&pending_by_index, &pending_by_height, md, idx);
     }
   }
 
   while(pending_by_index->size != 0) {
-    printf("... %ld\n", pending_by_index->size);
     double a, b;
     size_t hspan;
     size_t idx = _pop_next(&pending_by_index, &pending_by_height, md);
     double elev = md->data[idx].elevation;
     coord_type coord = mapdata_idx_to_coord(md, idx);
+    md->data[idx].group = 0;
+    printf("... %ld (%ld @ %g)\n", pending_by_index->size, idx, md->data[idx].elevation);
     _water_ellipse(&a, &b, river_slope, md->data[idx].water);
     hspan = a;
     if(hspan < 2) hspan = 2;
+    if(hspan > md->dim.x / 4) hspan = md->dim.x / 4;
+    if(hspan > md->dim.y / 4) hspan = md->dim.y / 4;
 
     for(size_t yoff = md->dim.y - hspan; yoff <= md->dim.y + hspan; ++yoff) {
       size_t ymag = yoff < md->dim.y ? md->dim.y - yoff : yoff - md->dim.y;
@@ -313,6 +344,7 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
       for(size_t xoff = md->dim.x - hspan; xoff <= md->dim.x + hspan; ++xoff) {
         size_t xmag = xoff < md->dim.x ? md->dim.x - xoff : xoff - md->dim.x;
         if(xmag == 0 && ymag == 0) continue;
+        
         size_t x = (coord.x + xoff) % md->dim.x;
         size_t widx = mapdata_xy_to_idx(md, x, y);
         double welev = md->data[widx].elevation;
@@ -321,12 +353,13 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
         double limitheight = _ellipse_height(a, b, xmag, ymag, max_slope);
         double lelev = elev + limitheight;
         if(lelev < welev) {
-          md->data[widx].elevation = lelev;
+          _safe_update_elev(&pending_by_height, md, widx, lelev);
         }
 
-        // if((xmag == 0 && ymag == 0) || (xmag == 1 && ymag == 0)) {
-        _insert_unique(&pending_by_index, &pending_by_height, md, widx);
-        // }
+
+        if(md->data[widx].group) {
+          _insert_unique(&pending_by_index, &pending_by_height, md, widx);
+        }
       }
     }    
   }

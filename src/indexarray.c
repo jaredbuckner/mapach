@@ -146,25 +146,25 @@ size_t array_bisect(array_type **array, predicate_fn_type pred,
 
 
 int idx_lt_bound(size_t value, void *data) {
-  curry_type *cd = data;
-  return value < cd->idx;
+  size_t *idx = data;
+  return value < *idx;
 }
 
 int idx_ngt_bound(size_t value, void *data) {
-  curry_type *cd = data;
-  return value <= cd->idx;
+  size_t *idx = data;
+  return value <= *idx;
 }
 
 int rhgt_lt_bound(size_t value, void *data) {
   curry_type *cd = data;
 
-  return cd->md->data[cd->idx].elevation < cd->md->data[value].elevation;
+  return cd->height < cd->md->data[value].elevation;
 }
 
 int rhgt_ngt_bound(size_t value, void *data) {
   curry_type *cd = data;
 
-  return cd->md->data[cd->idx].elevation <= cd->md->data[value].elevation;
+  return cd->height <= cd->md->data[value].elevation;
 }
 
 void _test_indexarray(void) {
@@ -238,24 +238,23 @@ void _test_indexarray(void) {
   if(NO_ERROR != (err = array_init(&myarray, 16))) exit(err);
   
   for(unsigned int i = 0; i < 1000; ++i) {
-    size_t op, idx;
-    curry_type cd;
+    size_t op, vidx, idx;
     random_r(&rbuf, &randresult);
     op = randresult % 2;
     random_r(&rbuf, &randresult);
-    cd.idx = randresult % (i + 1);
-    idx = array_bisect(&myarray, idx_lt_bound, &cd);    
-    switch(op) {      
+    vidx = randresult % (i + 1);
+    idx = array_bisect(&myarray, idx_lt_bound, &vidx);
+    switch(op) {
     case 0: {
-      array_insert(&myarray, idx, cd.idx);
+      array_insert(&myarray, idx, vidx);
       break;
     }
     case 1: {
-      if(myarray->data[idx] == cd.idx) array_delete(&myarray, idx);
+      if(myarray->data[idx] == vidx) array_delete(&myarray, idx);
       break;
     }
     }
-
+    
     printf("[");
     for(size_t pidx = 0; pidx < myarray->size; ++pidx) {
       if(pidx) printf(", ");

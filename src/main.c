@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
   map_exit_on_error(mapdata_init(&md, dimx, dimy));
 
   printf("Map generation...\n");
-  map_exit_on_error(mapdata_rough_gen(md, &rbuf, 1));
+  map_exit_on_error(mapdata_rough_gen(md, &rbuf, 1, .1));
 
   printf("Map erosion...\n");
   map_exit_on_error(mapdata_erode(md, 1, 1));
