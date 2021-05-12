@@ -255,13 +255,30 @@ int _is_nadir(mapdata_type *md, size_t idx) {
 void _insert_unique(array_type **pending_by_index,
                     array_type **pending_by_height,
                     mapdata_type *md, size_t idx) {
-  
+  curry_type cd;
+  cd.idx = idx;
+  cd.md = md;
+
+  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &cd);
+  if(index_where == (*pending_by_index)->size || (*pending_by_index)->data[index_where] != idx) {
+    size_t height_where = array_bisect(pending_by_height, rhgt_lt_bound, &cd);
+    array_insert(pending_by_index, index_where, idx);
+    array_insert(pending_by_height, height_where, idx);
+  }
 }
 
 size_t _pop_next(array_type **pending_by_index,
                  array_type **pending_by_height,
                  mapdata_type *md) {
-  return(0);
+  assert((*pending_by_height)->size != 0);
+  curry_type cd;
+  cd.idx = (*pending_by_height)->data[--((*pending_by_height)->size)];
+  cd.md = md;
+  size_t index_where = array_bisect(pending_by_index, idx_lt_bound, &cd);
+  assert(index_where != (*pending_by_index)->size);
+  assert((*pending_by_index)->data[index_where] == cd.idx);
+  array_delete(pending_by_index, index_where);
+  return cd.idx;  
 }
   
 
@@ -273,6 +290,50 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
   map_exit_on_error(array_init(&pending_by_index, 1024));
   map_exit_on_error(array_init(&pending_by_height, 1024));
 
+  for(size_t idx = 0; idx < md->size; ++idx) {
+    if(_is_nadir(md, idx)) {
+      _insert_unique(&pending_by_index, &pending_by_height, md, idx);
+    }
+  }
+
+  while(pending_by_index->size != 0) {
+    printf("... %ld\n", pending_by_index->size);
+    double a, b;
+    size_t hspan;
+    size_t idx = _pop_next(&pending_by_index, &pending_by_height, md);
+    double elev = md->data[idx].elevation;
+    coord_type coord = mapdata_idx_to_coord(md, idx);
+    _water_ellipse(&a, &b, river_slope, md->data[idx].water);
+    hspan = a;
+    if(hspan < 2) hspan = 2;
+
+    for(size_t yoff = md->dim.y - hspan; yoff <= md->dim.y + hspan; ++yoff) {
+      size_t ymag = yoff < md->dim.y ? md->dim.y - yoff : yoff - md->dim.y;
+      size_t y = (coord.y + yoff) % md->dim.y;
+      for(size_t xoff = md->dim.x - hspan; xoff <= md->dim.x + hspan; ++xoff) {
+        size_t xmag = xoff < md->dim.x ? md->dim.x - xoff : xoff - md->dim.x;
+        if(xmag == 0 && ymag == 0) continue;
+        size_t x = (coord.x + xoff) % md->dim.x;
+        size_t widx = mapdata_xy_to_idx(md, x, y);
+        double welev = md->data[widx].elevation;
+        if(welev < elev) continue;
+        
+        double limitheight = _ellipse_height(a, b, xmag, ymag, max_slope);
+        double lelev = elev + limitheight;
+        if(lelev < welev) {
+          md->data[widx].elevation = lelev;
+        }
+
+        // if((xmag == 0 && ymag == 0) || (xmag == 1 && ymag == 0)) {
+        _insert_unique(&pending_by_index, &pending_by_height, md, widx);
+        // }
+      }
+    }    
+  }
+
+  array_free(&pending_by_index);
+  array_free(&pending_by_height);
+  
   return NO_ERROR;
 }
                          

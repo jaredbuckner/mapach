@@ -28,12 +28,9 @@ int main(int argc, char* argv[]) {
   printf("Map generation...\n");
   map_exit_on_error(mapdata_rough_gen(md, &rbuf, 1));
 
-  printf("GROUP:\n");
-  for(size_t idx = 0; idx < md->size; ++idx) {
-    // printf(" %ld", md->data[idx].group);
-    // if((idx + 1) % md->dim.x == 0) printf("\n");
-  }
-
+  printf("Map erosion...\n");
+  map_exit_on_error(mapdata_erode(md, 1, 1));
+  
   printf("\nELEVATION:\n");
   double min_elev = 0;
   for(size_t idx = 0; idx < md->size; ++idx) {
@@ -46,7 +43,6 @@ int main(int argc, char* argv[]) {
       if(eElev > elev) isZenith = 0;
       else if(eElev < elev) isNadir = 0;
     }
-
     
     if(elev < min_elev) {
       min_elev = elev;

@@ -134,7 +134,7 @@ size_t array_bisect(array_type **array, predicate_fn_type pred,
     size_t aidx = (lb + ub) / 2;
     size_t didx = ad->data[aidx];
     if(pred(didx, predData)) {
-      lb = aidx;
+      lb = aidx + 1;
     } else {
       ub = aidx;
     }
@@ -224,6 +224,47 @@ void _test_indexarray(void) {
         array_move_elem(&myarray, idx, idx2);
       }
     }
+    if(myarray->size > maxsize) maxsize = myarray->size;
+    if(myarray->capacity > maxcapacity) maxcapacity = myarray->capacity;
+  }
+
+  printf("Current size:  %ld/%ld\n", myarray->size, myarray->capacity);
+  printf("Maximum size:  %ld/%ld\n", maxsize, maxcapacity);
+  
+  array_free(&myarray);
+  maxsize = 0;
+  maxcapacity = 0;
+  
+  if(NO_ERROR != (err = array_init(&myarray, 16))) exit(err);
+  
+  for(unsigned int i = 0; i < 1000; ++i) {
+    size_t op, idx;
+    curry_type cd;
+    random_r(&rbuf, &randresult);
+    op = randresult % 2;
+    random_r(&rbuf, &randresult);
+    cd.idx = randresult % (i + 1);
+    idx = array_bisect(&myarray, idx_lt_bound, &cd);    
+    switch(op) {      
+    case 0: {
+      array_insert(&myarray, idx, cd.idx);
+      break;
+    }
+    case 1: {
+      if(myarray->data[idx] == cd.idx) array_delete(&myarray, idx);
+      break;
+    }
+    }
+
+    printf("[");
+    for(size_t pidx = 0; pidx < myarray->size; ++pidx) {
+      if(pidx) printf(", ");
+      if(idx == pidx) printf("(");
+      printf("%ld", myarray->data[pidx]);
+      if(idx == pidx) printf(")");
+    }
+    printf("]\n");
+    
     if(myarray->size > maxsize) maxsize = myarray->size;
     if(myarray->capacity > maxcapacity) maxcapacity = myarray->capacity;
   }
