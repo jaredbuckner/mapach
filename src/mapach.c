@@ -126,21 +126,41 @@ size_t mapdata_surround(mapdata_type *md, size_t center, direction_type d) {
   return(y * md->dim.x + x);
 }
 
-int _can_place_here(mapdata_type *md, size_t hereIdx) {
+int _can_place_here(mapdata_type *md, size_t hereIdx, group_type nextGroup) {
   int        flips = 0;
+  group_type groupAlfa = 0;
+  group_type groupBravo = 0;
   group_type lastGroup = md->data[mapdata_surround(md, hereIdx, 7)].group;
-
-  for(size_t sidx = 0; sidx < 8; ++sidx) {
+  
+  for(size_t sidx = 0; sidx < 8; ++sidx) {    
     group_type group = md->data[mapdata_surround(md, hereIdx, sidx)].group;
+    if(group && group != groupAlfa && group != groupBravo) {
+      if(groupAlfa == 0) {
+        groupAlfa = group;
+      } else if(groupBravo == 0) {
+        groupBravo = group;
+      } else {
+        return 0;
+      }
+    }
     if(group != lastGroup) {
-      if(++flips == 3) {
+      flips += 1;
+      if(flips == 5 || ( groupBravo == 0 && flips == 3)) {
         return 0;
       }
       lastGroup = group;
     }
   }
 
-  return 1;
+  if(groupAlfa && groupBravo) {
+    for(size_t aIdx = 0; aIdx < md->size; ++aIdx) {
+      if(md->data[aIdx].group == groupBravo) {
+        md->data[aIdx].group = groupAlfa;
+      }
+    }
+  }
+  
+  return(groupAlfa || nextGroup);
 }
 
 void _scan_environ(mapdata_type *md, size_t hereIdx,
@@ -166,14 +186,14 @@ void _scan_environ(mapdata_type *md, size_t hereIdx,
   }
 }
 
-void _rough_place(mapdata_type *md, double max_slope, double rainwater, size_t working_index) {
+void _rough_place(mapdata_type *md, double max_slope, double rainwater, size_t working_index, group_type group) {
   double min_surround;
   double ground_water;
   
   _scan_environ(md, working_index, &min_surround, &ground_water);
   md->data[working_index].elevation = min_surround - max_slope;
   md->data[working_index].water = ground_water + rainwater;
-  md->data[working_index].group = 1;
+  md->data[working_index].group = group;
   
 }
   
@@ -184,11 +204,12 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
   signed int   randresult;
   size_t remaining = md->size;
   size_t peaks;
+  group_type group;
   
   map_exit_on_error(array_init(&pending_indices, 1024));
 
   random_r(rbuf, &randresult);
-  peaks = (randresult % 25) + 1;
+  peaks = (randresult % 81) + 1;
   for(size_t peak = 0; peak < peaks; ++peak) {
     do {
       size_t x;
@@ -196,9 +217,9 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
       random_r(rbuf, &randresult); x = randresult % (md->dim.x / 2) + (md->dim.x / 4);
       random_r(rbuf, &randresult); y = randresult % (md->dim.y / 4) + (md->dim.x * 3 / 8);
       working_index = mapdata_xy_to_idx(md, x, y);
-    } while(!_can_place_here(md, working_index));
+    } while(!(group = _can_place_here(md, working_index, peak+1)));
     
-    _rough_place(md, max_slope, rainwater, working_index);
+    _rough_place(md, max_slope, rainwater, working_index, group);
     remaining -= 1;
 
     for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {
@@ -222,9 +243,9 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
       pending_indices->size -= 1;  // And manually decrease the size, bypassing some... stuff
       
       if(md->data[working_index].group != 0) continue;  //  Don't recalculate an already-handled entry
-      if(!_can_place_here(md, working_index)) continue;  //  Don't place blocking entries
+      if(!(group = _can_place_here(md, working_index, 1))) continue;  //  Don't place blocking entries
       
-      _rough_place(md, max_slope, rainwater, working_index);
+      _rough_place(md, max_slope, rainwater, working_index, group);
       remaining -= 1;
       
       for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {
@@ -248,7 +269,7 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
       working_index = pending_indices->data[arrIdx];
       pending_indices->size = 0;  // Manually clear the array... sort of
       
-      _rough_place(md, max_slope, rainwater, working_index);
+      _rough_place(md, max_slope, rainwater, working_index, 1);
       remaining -= 1;
       
       for(size_t sidx = DIR_NN; sidx < DIR_ENUM_SIZE; sidx += 2) {

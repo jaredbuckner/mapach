@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   
   const double pixelheight = 1024.0 / 65535.0;
   const double pixelres = 16.65;
-  const double max_grade = 1.0;
+  const double max_grade = 0.69;
   
   const double max_slope = max_grade * pixelres / pixelheight;
   const double gen_slope = max_slope * 0.04;
@@ -81,13 +81,82 @@ int main(int argc, char* argv[]) {
     // if((idx + 1) % md->dim.x == 0) printf("\n");
   }
 
+  // **
+  double special_min = 0;
+  for(size_t x = 2 * md->dim.x / 9; x < 7 * md->dim.x / 9; ++x) {
+    size_t idx = mapdata_xy_to_idx(md, x, 2 * md->dim.y / 9);
+    double elev = md->data[idx].elevation;
+
+    if(elev < special_min) {
+      special_min = elev;
+    }
+    
+    idx = mapdata_xy_to_idx(md, x, 7 * md->dim.y / 9);
+    elev = md->data[idx].elevation;
+
+    if(elev < special_min) {
+      special_min = elev;
+    }
+
+  }
+  for(size_t y = 2 * md->dim.y / 9; y < 7 * md->dim.y / 9; ++y) {
+    size_t idx = mapdata_xy_to_idx(md, 2 * md->dim.x / 9, y);
+    double elev = md->data[idx].elevation;
+    if(elev < special_min) {
+      special_min = elev;
+    }
+    
+    idx = mapdata_xy_to_idx(md, 7 * md->dim.x / 9, y);
+    elev = md->data[idx].elevation;
+    if(elev < special_min) {
+      special_min = elev;
+    }
+    
+  }
+// **
+  double special_min2 = 0;
+  for(size_t x = 0; x < md->dim.x; ++x) {
+    size_t idx = mapdata_xy_to_idx(md, x, 0);
+    double elev = md->data[idx].elevation;
+
+    if(elev < special_min2) {
+      special_min2 = elev;
+    }
+    
+    idx = mapdata_xy_to_idx(md, x, md->dim.y - 1);
+    elev = md->data[idx].elevation;
+
+    if(elev < special_min2) {
+      special_min2 = elev;
+    }
+
+  }
+  for(size_t y = 0; y < md->dim.y; ++y) {
+    size_t idx = mapdata_xy_to_idx(md, 0, y);
+    double elev = md->data[idx].elevation;
+    if(elev < special_min2) {
+      special_min2 = elev;
+    }
+    
+    idx = mapdata_xy_to_idx(md, md->dim.x - 1, y);
+    elev = md->data[idx].elevation;
+    if(elev < special_min2) {
+      special_min2 = elev;
+    }
+    
+  }
+
+  if(special_min2 > special_min) {
+    special_min = special_min2;
+  }
+  
   printf("\nMax:  %g\n\n", max_vol);
 
   {
-    double scale_elev = max_elev - min_elev > 65535 ? max_elev : min_elev + 65535;
+    double scale_elev = max_elev - special_min > 65535 ? max_elev : special_min + 65535;
     FILE *fp = fopen("sample.png", "wb");
     if(fp) {
-      mapdata_write_png(fp, md, min_elev, scale_elev);
+      mapdata_write_png(fp, md, special_min, scale_elev);
       fclose(fp);
     }
   }
