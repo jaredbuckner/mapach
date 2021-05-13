@@ -17,6 +17,15 @@ int main(int argc, char* argv[]) {
   mapdata_type *md;
   const size_t dim = 1081;
   const size_t dimx = 1 * dim, dimy = 1 * dim;
+  
+  const double pixelheight = 1024.0 / 65535.0;
+  const double pixelres = 16.65;
+  const double max_grade = 1.0;
+  
+  const double max_slope = max_grade * pixelres / pixelheight;
+  const double gen_slope = max_slope * 0.04;
+  const double rainwater = 0.1;
+  
   //const size_t dimx = 18000, dimy = dimx;
   
   rbuf.state = NULL;
@@ -26,13 +35,14 @@ int main(int argc, char* argv[]) {
   map_exit_on_error(mapdata_init(&md, dimx, dimy));
 
   printf("Map generation...\n");
-  map_exit_on_error(mapdata_rough_gen(md, &rbuf, 1, .1));
+  map_exit_on_error(mapdata_rough_gen(md, &rbuf, gen_slope, rainwater));
 
   printf("Map erosion...\n");
-  map_exit_on_error(mapdata_erode(md, 1, 1));
+  map_exit_on_error(mapdata_erode(md, gen_slope, max_slope));
   
   printf("\nELEVATION:\n");
-  double min_elev = 0;
+  double min_elev = md->data[0].elevation;
+  double max_elev = min_elev;
   for(size_t idx = 0; idx < md->size; ++idx) {
     double elev = md->data[idx].elevation;
     char isZenith = 1;
@@ -46,6 +56,8 @@ int main(int argc, char* argv[]) {
     
     if(elev < min_elev) {
       min_elev = elev;
+    } else if (elev > max_elev) {
+      max_elev = elev;
     }
 
     if(isNadir || isZenith) {
@@ -55,8 +67,10 @@ int main(int argc, char* argv[]) {
              md->data[idx].elevation);
     }
   }
+
+
   
-  printf("\nMin:  %g\n\nWATER:\n", min_elev);
+  printf("\nRange:  %g-%g\n\nWATER:\n", min_elev, max_elev);
   double max_vol = 0;
   for(size_t idx = 0; idx < md->size; ++idx) {
     if(md->data[idx].water > max_vol) {
@@ -70,9 +84,10 @@ int main(int argc, char* argv[]) {
   printf("\nMax:  %g\n\n", max_vol);
 
   {
+    double scale_elev = max_elev - min_elev > 65535 ? max_elev : min_elev + 65535;
     FILE *fp = fopen("sample.png", "wb");
     if(fp) {
-      mapdata_write_png(fp, md, min_elev, 0);
+      mapdata_write_png(fp, md, min_elev, scale_elev);
       fclose(fp);
     }
   }
