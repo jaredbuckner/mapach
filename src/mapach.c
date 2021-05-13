@@ -52,15 +52,17 @@ void _water_ellipse(double* a, double* b, double slope, double water) {
 }
 
 double _ellipse_height(double a, double b, double x, double y, double slope) {
+  const double omicron = 3;
+  const double omicronsq = omicron * omicron;
   double rsq = x*x + y*y;
   double r = sqrt(rsq);
   if(r > a) {
-    return 2 * b + slope * (r - a);
+    return omicron * b + slope * (r - a);
   } else {
     double asq = a * a;
-    double alfa = b * (2 - sqrt(1 - rsq / asq));
-    if(r < a / 2) {
-      double bravo = 2 * b * (1 - sqrt(1 - 4 * rsq / asq));
+    double alfa = b * (omicron - sqrt(1 - rsq / asq));
+    if(r < a / omicron) {
+      double bravo = omicron * b * (1 - sqrt(1 - omicronsq * rsq / asq));
       return alfa < bravo ? alfa : bravo;
     } else {
       return alfa;
@@ -234,9 +236,16 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
   while(remaining) {
     if(pending_indices->size) {
       size_t arrIdx;
-      
+
       random_r(rbuf, &randresult);
-      arrIdx = randresult % pending_indices->size;
+      if(randresult % 100 > 35) {
+        random_r(rbuf, &randresult);
+        arrIdx = randresult % pending_indices->size;
+      } else {
+        // Sometimes follow the current thread
+        arrIdx = pending_indices->size - 1;
+      }
+
       working_index = pending_indices->data[arrIdx];
       // Move the last entry here instead of a giant memmove
       pending_indices->data[arrIdx] = pending_indices->data[pending_indices->size - 1];

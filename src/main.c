@@ -23,8 +23,8 @@ int main(int argc, char* argv[]) {
   const double max_grade = 0.69;
   
   const double max_slope = max_grade * pixelres / pixelheight;
-  const double gen_slope = max_slope * 0.04;
-  const double rainwater = 0.1;
+  const double gen_slope = max_slope * 0.05;
+  const double rainwater = 0.2;
   
   //const size_t dimx = 18000, dimy = dimx;
   
