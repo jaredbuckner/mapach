@@ -484,7 +484,7 @@ error_type mapdata_write_png(FILE *fp, mapdata_type *md,
                PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
   png_write_info(png_ptr, info_ptr);
 
-  png_byte* row = malloc(2 * md->dim.x);
+  png_byte* row = malloc(2 * (x1-x0));
   for(size_t y = y0; y < y1; ++y) {
     for(size_t x = x0; x < x1; ++x) {
       size_t idx = mapdata_xy_to_idx(md, x, y);
@@ -494,7 +494,7 @@ error_type mapdata_write_png(FILE *fp, mapdata_type *md,
       if(color > 65535) color = 65535;
       else if(color < 0) color = 0;
       
-      ((unsigned short*)row)[x] = htons((unsigned short)color);
+      ((unsigned short*)row)[x-x0] = htons((unsigned short)color);
     }
     png_write_row(png_ptr, row);
   }

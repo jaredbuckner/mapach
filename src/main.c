@@ -50,8 +50,8 @@ int main(int argc, char* argv[]) {
   char statebuf[256];
   struct random_data rbuf;
   mapdata_type *mdr, *md;
-  const size_t picdim = 1081;
-  const size_t dimmul = 3;
+  const size_t picdim = 1081 * 1.5;
+  const size_t dimmul = 2;
   const size_t dimx = dimmul * picdim, dimy = dimmul * picdim;
   
   const double pixelheight = 1024.0 / 65535.0;
@@ -153,7 +153,9 @@ int main(int argc, char* argv[]) {
     double scale_elev = max_elev - special_min > 65535 ? max_elev : special_min + 65535;
     FILE *fp = fopen("sample.png", "wb");
     if(fp) {
-      mapdata_write_png(fp, md, 0,0, 1081, 1081, special_min, scale_elev);
+      size_t xb = (md->dim.x - 1081) / 2;
+      size_t yb = (md->dim.y - 1081) / 2;
+      mapdata_write_png(fp, md, xb, yb, xb + 1081, yb + 1081, special_min, scale_elev);
       fclose(fp);
     }
   }
