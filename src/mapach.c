@@ -108,6 +108,29 @@ void mapdata_free(mapdata_type **mdh) {
   *mdh = NULL;
 }
 
+void mapdata_copy(mapdata_type *mdsrc, mapdata_type *mddst) {
+  for(size_t dstx = 0; dstx != mddst->dim.x; ++dstx) {
+    size_t srcx0 = dstx * mdsrc->dim.x / mddst->dim.x;
+    size_t srcx1 = (dstx + 1) * mdsrc->dim.x / mddst->dim.x;
+    if(srcx1 == srcx0) srcx1 = srcx0 + 1;
+    for(size_t dsty = 0; dsty != mddst->dim.y; ++dsty) {
+      size_t srcy0 = dsty * mdsrc->dim.y / mddst->dim.y;
+      size_t srcy1 = (dsty + 1) * mdsrc->dim.y / mddst->dim.y;
+      if(srcy1 == srcy0) srcy1 = srcy0 + 1;
+      size_t dstidx = mapdata_xy_to_idx(mddst, dstx, dsty);
+      double minelev = INFINITY;
+      for(size_t srcx = srcx0; srcx != srcx1; ++srcx) {
+        for(size_t srcy = srcy0; srcy != srcy1; ++srcy) {
+          size_t srcidx = mapdata_xy_to_idx(mdsrc, srcx, srcy);
+          double elev = mdsrc->data[srcidx].elevation;
+          if(elev < minelev) minelev = elev;
+        }
+      }
+      mddst->data[dstidx].elevation = minelev;
+    }
+  }
+}
+
 size_t mapdata_coord_to_idx(mapdata_type *md, coord_type coord) {
   return(mapdata_xy_to_idx(md, coord.x, coord.y));
 }
@@ -442,6 +465,8 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
 
 
 error_type mapdata_write_png(FILE *fp, mapdata_type *md,
+                             size_t x0, size_t y0,
+                             size_t x1, size_t y1,
                              double black_elev, double white_elev) {
   png_structp png_ptr = 0;
   png_infop info_ptr = 0;
@@ -454,14 +479,14 @@ error_type mapdata_write_png(FILE *fp, mapdata_type *md,
 
   png_init_io(png_ptr, fp);
 
-  png_set_IHDR(png_ptr, info_ptr, md->dim.x, md->dim.y, 16,
+  png_set_IHDR(png_ptr, info_ptr, x1-x0, y1-y0, 16,
                PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
                PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
   png_write_info(png_ptr, info_ptr);
 
   png_byte* row = malloc(2 * md->dim.x);
-  for(size_t y = 0; y < md->dim.y; ++y) {
-    for(size_t x = 0; x < md->dim.x; ++x) {
+  for(size_t y = y0; y < y1; ++y) {
+    for(size_t x = x0; x < x1; ++x) {
       size_t idx = mapdata_xy_to_idx(md, x, y);
       double elev = md->data[idx].elevation;
       double elev_span = elev - black_elev;
