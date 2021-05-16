@@ -40,20 +40,21 @@ void map_exit_on_error(error_type e) {
   }
 }
 
-
+// Globals!?  But why?
+const double omicron = 6;
+const double omicronsq = omicron * omicron;
 
 void _water_ellipse(double* a, double* b, double slope, double water) {
   // For now we're going to create an ellipse with the given half-volume, for which the ratio of a to b is the slope (m)
   // A = 0.5 * pi * a * b
   //   = 0.5 * pi * m * a * a
   //
-  *a = sqrt(water / M_PI_2 / slope);
+  // Ratio is adjusted by omicron
+  *a = sqrt(water / M_PI_2 / slope / omicron);
   *b = slope * *a;
 }
 
 double _ellipse_height(double a, double b, double x, double y, double slope) {
-  const double omicron = 3;
-  const double omicronsq = omicron * omicron;
   double rsq = x*x + y*y;
   double r = sqrt(rsq);
   if(r > a) {
@@ -265,19 +266,22 @@ error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
         }
       }
     } else {
-      size_t arrIdx;
+      double ddsq = (double)md->size;  // This is automatically too far from center!
+      ddsq *= ddsq;
+      
       for(size_t arrIdx = 0; arrIdx < md->size; ++arrIdx) {
         if(md->data[arrIdx].group == 0) {
-          map_exit_on_error(array_insert(&pending_indices, pending_indices->size, arrIdx));
+          coord_type where = mapdata_idx_to_coord(md, arrIdx);
+          double xdel = (double)(where.x) - (double)(md->dim.x);
+          double ydel = (double)(where.y) - (double)(md->dim.y);
+          double dsq = xdel * xdel + ydel * ydel;
+          if(dsq < ddsq) {
+            ddsq = dsq;
+            working_index = arrIdx;
+          }
         }
       }
 
-      assert(pending_indices->size);
-      random_r(rbuf, &randresult);
-      arrIdx = randresult % pending_indices->size;
-      working_index = pending_indices->data[arrIdx];
-      pending_indices->size = 0;  // Manually clear the array... sort of
-      
       _rough_place(md, max_slope, rainwater, working_index, 1);
       remaining -= 1;
       

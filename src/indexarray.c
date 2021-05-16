@@ -163,7 +163,7 @@ int rhgt_lt_bound(size_t value, void *data) {
 
 int rhgt_ngt_bound(size_t value, void *data) {
   curry_type *cd = data;
-
+  
   return cd->height <= cd->md->data[value].elevation;
 }
 

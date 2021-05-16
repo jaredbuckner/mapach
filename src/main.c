@@ -11,6 +11,41 @@
 #include "mapach.h"
 
 
+void _minax_elev_xy(double *min, double *max, mapdata_type *md, size_t x, size_t y) {
+  size_t idx = mapdata_xy_to_idx(md, x, y);
+  double elev = md->data[idx].elevation;
+  if(min && !(*min <= elev)) *min=elev;
+  if(max && !(*max <= elev)) *max=elev;
+}
+
+void _minax_elev_x(double *min, double *max, mapdata_type *md, size_t x, size_t y0, size_t y1) {
+  for(size_t y = y0; y != y1; y = (y + 1) % md->dim.y) {
+    _minax_elev_xy(min, max, md, x, y);
+  }
+}
+
+void _minax_elev_y(double *min, double *max, mapdata_type*md, size_t x0, size_t x1, size_t y) {
+  for(size_t x = x0; x != x0; x = (x + 1) % md->dim.x) {
+    _minax_elev_xy(min, max, md, x, y);
+  }
+}
+
+void _minax_elev_bound(double *min, double *max, mapdata_type*md,
+                       size_t x0, size_t x1,
+                       size_t y0, size_t y1) {
+  _minax_elev_x(min, max, md, x0, y0, y1);
+  _minax_elev_x(min, max, md, x1, y0, y1);
+  _minax_elev_y(min, max, md, x0, x1, y0);
+  _minax_elev_y(min, max, md, x0, x1, y1);
+}
+
+void _minax_elev(double *min, double *max, mapdata_type *md, size_t x0, size_t x1, size_t y0, size_t y1) {
+  for(size_t y = y0; y != y1; y = (y + 1) % md->dim.y) {
+    _minax_elev_y(min, max, md, x0, x1, y);
+  }
+}
+
+
 int main(int argc, char* argv[]) {
   char statebuf[256];
   struct random_data rbuf;
@@ -24,7 +59,7 @@ int main(int argc, char* argv[]) {
   
   const double max_slope = max_grade * pixelres / pixelheight;
   const double gen_slope = max_slope * 0.05;
-  const double rainwater = 0.2;
+  const double rainwater = 0.52;
   
   //const size_t dimx = 18000, dimy = dimx;
   
@@ -83,69 +118,24 @@ int main(int argc, char* argv[]) {
 
   // **
   double special_min = 0;
-  for(size_t x = 2 * md->dim.x / 9; x < 7 * md->dim.x / 9; ++x) {
-    size_t idx = mapdata_xy_to_idx(md, x, 2 * md->dim.y / 9);
-    double elev = md->data[idx].elevation;
-
-    if(elev < special_min) {
-      special_min = elev;
-    }
-    
-    idx = mapdata_xy_to_idx(md, x, 7 * md->dim.y / 9);
-    elev = md->data[idx].elevation;
-
-    if(elev < special_min) {
-      special_min = elev;
-    }
-
-  }
-  for(size_t y = 2 * md->dim.y / 9; y < 7 * md->dim.y / 9; ++y) {
-    size_t idx = mapdata_xy_to_idx(md, 2 * md->dim.x / 9, y);
-    double elev = md->data[idx].elevation;
-    if(elev < special_min) {
-      special_min = elev;
-    }
-    
-    idx = mapdata_xy_to_idx(md, 7 * md->dim.x / 9, y);
-    elev = md->data[idx].elevation;
-    if(elev < special_min) {
-      special_min = elev;
-    }
-    
-  }
-// **
+  _minax_elev_bound(&special_min, 0, md,
+                    2 * md->dim.x / 9,  7 * md->dim.y / 9,
+                    2 * md->dim.y / 9,  7 * md->dim.y / 9);
+  
   double special_min2 = 0;
-  for(size_t x = 0; x < md->dim.x; ++x) {
-    size_t idx = mapdata_xy_to_idx(md, x, 0);
-    double elev = md->data[idx].elevation;
+  _minax_elev_bound(&special_min2, 0, md,
+                    0, md->dim.x-1,
+                    0, md->dim.y-1);
 
-    if(elev < special_min2) {
-      special_min2 = elev;
-    }
-    
-    idx = mapdata_xy_to_idx(md, x, md->dim.y - 1);
-    elev = md->data[idx].elevation;
-
-    if(elev < special_min2) {
-      special_min2 = elev;
-    }
-
+  if(special_min2 > special_min) {
+    special_min = special_min2;
   }
-  for(size_t y = 0; y < md->dim.y; ++y) {
-    size_t idx = mapdata_xy_to_idx(md, 0, y);
-    double elev = md->data[idx].elevation;
-    if(elev < special_min2) {
-      special_min2 = elev;
-    }
-    
-    idx = mapdata_xy_to_idx(md, md->dim.x - 1, y);
-    elev = md->data[idx].elevation;
-    if(elev < special_min2) {
-      special_min2 = elev;
-    }
-    
-  }
-
+  
+  special_min2 = 0;
+  _minax_elev_bound(&special_min2, 0, md,
+                    3 * md->dim.x / 9,  6 * md->dim.y / 9,
+                    3 * md->dim.y / 9,  6 * md->dim.y / 9);
+  
   if(special_min2 > special_min) {
     special_min = special_min2;
   }
