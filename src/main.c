@@ -14,12 +14,13 @@
 int main(int argc, char* argv[]) {
   char statebuf[256];
   struct random_data rbuf;
-  mapdata_type *md;
-  const size_t dim = 1081;
-  const size_t dimx = 1 * dim, dimy = 1 * dim;
+  mapdata_type *mdr, *md;
+  const size_t picdim = 1081;
+  const size_t dimmul = 3;
+  const size_t dimx = dimmul * picdim, dimy = dimmul * picdim;
   
   const double pixelheight = 1024.0 / 65535.0;
-  const double pixelres = 16.65;
+  const double pixelres = 16.65 / (double) dimmul;
   const double max_grade = 0.69;
   
   const double max_slope = max_grade * pixelres / pixelheight;
@@ -32,13 +33,19 @@ int main(int argc, char* argv[]) {
   initstate_r(time(NULL), statebuf, 256, &rbuf);
 
   printf("Initializing map data...\n");
-  map_exit_on_error(mapdata_init(&md, dimx, dimy));
+  map_exit_on_error(mapdata_init(&mdr, dimx, dimy));
+  map_exit_on_error(mapdata_init(&md, picdim, picdim));
 
   printf("Map generation...\n");
-  map_exit_on_error(mapdata_rough_gen(md, &rbuf, gen_slope, rainwater));
+  map_exit_on_error(mapdata_rough_gen(mdr, &rbuf, gen_slope, rainwater));
 
   printf("Map erosion...\n");
-  map_exit_on_error(mapdata_erode(md, gen_slope, max_slope));
+  map_exit_on_error(mapdata_erode(mdr, gen_slope, max_slope));
+
+  printf("Map implosion...\n");
+  mapdata_copy(mdr, md);
+
+  mapdata_free(&mdr);
   
   printf("\nELEVATION:\n");
   double min_elev = md->data[0].elevation;
@@ -156,7 +163,7 @@ int main(int argc, char* argv[]) {
     double scale_elev = max_elev - special_min > 65535 ? max_elev : special_min + 65535;
     FILE *fp = fopen("sample.png", "wb");
     if(fp) {
-      mapdata_write_png(fp, md, special_min, scale_elev);
+      mapdata_write_png(fp, md, 0,0, 1081, 1081, special_min, scale_elev);
       fclose(fp);
     }
   }
