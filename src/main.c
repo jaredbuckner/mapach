@@ -3,6 +3,7 @@
 /// Map generator main entry point
 
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -19,30 +20,36 @@ void _minax_elev_xy(double *min, double *max, mapdata_type *md, size_t x, size_t
 }
 
 void _minax_elev_x(double *min, double *max, mapdata_type *md, size_t x, size_t y0, size_t y1) {
-  for(size_t y = y0; y != y1; y = (y + 1) % md->dim.y) {
+  size_t y = y0;
+  do {
     _minax_elev_xy(min, max, md, x, y);
-  }
+    y = (y + 1) % md->dim.y;
+  } while(y != y1);
 }
 
 void _minax_elev_y(double *min, double *max, mapdata_type*md, size_t x0, size_t x1, size_t y) {
-  for(size_t x = x0; x != x0; x = (x + 1) % md->dim.x) {
+  size_t x = x0;
+  do {
     _minax_elev_xy(min, max, md, x, y);
-  }
+    x = (x + 1) % md->dim.x;
+  } while(x != x1);
 }
 
 void _minax_elev_bound(double *min, double *max, mapdata_type*md,
                        size_t x0, size_t x1,
                        size_t y0, size_t y1) {
-  _minax_elev_x(min, max, md, x0, y0, y1);
-  _minax_elev_x(min, max, md, x1, y0, y1);
-  _minax_elev_y(min, max, md, x0, x1, y0);
-  _minax_elev_y(min, max, md, x0, x1, y1);
+  _minax_elev_x(min, max, md, x0, y0, (y1+1)%md->dim.y);
+  _minax_elev_x(min, max, md, x1, y0, (y1+1)%md->dim.y);
+  _minax_elev_y(min, max, md, x0, (x1+1)%md->dim.x, y0);
+  _minax_elev_y(min, max, md, x0, (x1+1)%md->dim.x, y1);
 }
 
 void _minax_elev(double *min, double *max, mapdata_type *md, size_t x0, size_t x1, size_t y0, size_t y1) {
-  for(size_t y = y0; y != y1; y = (y + 1) % md->dim.y) {
+  size_t y = y0;
+  do {
     _minax_elev_y(min, max, md, x0, x1, y);
-  }
+    y = (y+1) % md->dim.y;
+  } while(y != y1);
 }
 
 
@@ -56,11 +63,12 @@ int main(int argc, char* argv[]) {
   
   const double pixelheight = 1024.0 / 65535.0;
   const double pixelres = 16.65 / (double) dimmul;
-  const double max_grade = 0.69;
+  const double max_grade = 0.71;
   
   const double max_slope = max_grade * pixelres / pixelheight;
-  const double gen_slope = max_slope * 0.05;
-  const double rainwater = 0.52;
+  const double gen_slope = max_slope * 0.04;
+  const double rainwater = 0.23;
+  const double omicron = 2;
   
   //const size_t dimx = 18000, dimy = dimx;
   
@@ -75,7 +83,17 @@ int main(int argc, char* argv[]) {
   map_exit_on_error(mapdata_rough_gen(mdr, &rbuf, gen_slope, rainwater));
 
   printf("Map erosion...\n");
-  map_exit_on_error(mapdata_erode(mdr, gen_slope, max_slope));
+  map_exit_on_error(mapdata_erode(mdr, gen_slope, max_slope, omicron));
+
+  {
+    FILE *fp = fopen("precopy.png", "wb");
+    if(fp) {
+      double rmin=NAN, rmax=NAN; _minax_elev(&rmin, &rmax, mdr, 0, 0, 0, 0);
+      double scale_elev = rmax - rmin > 65535 ? rmax : rmin + 65535;
+      mapdata_write_png(fp, mdr, 0, 0, mdr->dim.x, mdr->dim.y, rmin, scale_elev);
+      fclose(fp);
+    }
+  }
 
   printf("Map implosion...\n");
   mapdata_copy(mdr, md);

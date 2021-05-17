@@ -20,7 +20,7 @@ extern error_type mapdata_rough_gen(mapdata_type *md, struct random_data *rbuf,
                                     double max_slope, double rainwater);
 
 extern error_type mapdata_erode(mapdata_type *md, double river_slope,
-                                double max_slope);
+                                double max_slope, double omicron);
 
 extern error_type mapdata_write_png(FILE *fp, mapdata_type *md,
                                     size_t x0, size_t y0,

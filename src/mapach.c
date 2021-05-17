@@ -40,11 +40,7 @@ void map_exit_on_error(error_type e) {
   }
 }
 
-// Globals!?  But why?
-const double omicron = 6;
-const double omicronsq = omicron * omicron;
-
-void _water_ellipse(double* a, double* b, double slope, double water) {
+void _water_ellipse(double* a, double* b, double slope, double water, double omicron) {
   // For now we're going to create an ellipse with the given half-volume, for which the ratio of a to b is the slope (m)
   // A = 0.5 * pi * a * b
   //   = 0.5 * pi * m * a * a
@@ -54,7 +50,7 @@ void _water_ellipse(double* a, double* b, double slope, double water) {
   *b = slope * *a;
 }
 
-double _ellipse_height(double a, double b, double x, double y, double slope) {
+double _ellipse_height(double a, double b, double x, double y, double slope, double omicron, double omicronsq) {
   double rsq = x*x + y*y;
   double r = sqrt(rsq);
   if(r > a) {
@@ -400,13 +396,16 @@ void _safe_update_elev(array_type **pending_by_height,
 }  
 
 error_type mapdata_erode(mapdata_type *md, double river_slope,
-                         double max_slope) {
+                         double max_slope, double omicron) {
   array_type *pending_by_index;
   array_type *pending_by_height;
+  double omicronsq = omicron * omicron;
   
   map_exit_on_error(array_init(&pending_by_index, 1024));
   map_exit_on_error(array_init(&pending_by_height, 1024));
 
+  size_t done = 0;
+  
   for(size_t idx = 0; idx < md->size; ++idx) {
     md->data[idx].group = 1;
     if(_is_nadir(md, idx)) {
@@ -422,9 +421,10 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
     coord_type coord = mapdata_idx_to_coord(md, idx);
     md->data[idx].group = 0;
     if(pending_by_index->size % 1000 == 0) {
-      printf("... %ld (%ld @ %g)\n", pending_by_index->size, idx, md->data[idx].elevation);
+      printf("... %ld (%ld%% @ %g)\n", pending_by_index->size, done * 100 / md->size, md->data[idx].elevation);
     }
-    _water_ellipse(&a, &b, river_slope, md->data[idx].water);
+    done += 1;
+    _water_ellipse(&a, &b, river_slope, md->data[idx].water, omicron);
     hspan = a;
     if(hspan < 4) hspan = 4;
     if(hspan > md->dim.x / 4) hspan = md->dim.x / 4;
@@ -442,7 +442,7 @@ error_type mapdata_erode(mapdata_type *md, double river_slope,
         double welev = md->data[widx].elevation;
         if(welev < elev) continue;
         
-        double limitheight = _ellipse_height(a, b, xmag, ymag, max_slope);
+        double limitheight = _ellipse_height(a, b, xmag, ymag, max_slope, omicron, omicronsq);
         double lelev = elev + limitheight;
         if(lelev < welev) {
           _safe_update_elev(&pending_by_height, md, widx, lelev);
